@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     COOKIE_NAME: str = "cutnote_session"
     COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "https://cutnote-three.vercel.app", "https://cutnote-hbcrtjnty-divyanshu-1a22.vercel.app"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "https://cutnote-three.vercel.app", "https://cutnote-hbcrtjnty-divyanshu-1a22.vercel.app", "https://cutnote-a2vmtw66f-divyanshu-1a22.vercel.app"]
 
     STORAGE_LOCAL_ROOT: str = "./storage_data"
     MAX_VIDEO_SIZE_BYTES: int = 10 * 1024 * 1024 * 1024
@@ -51,4 +51,5 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
 
