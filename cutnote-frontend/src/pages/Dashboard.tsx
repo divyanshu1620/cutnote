@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { formatTimecode, formatBytes } from '../lib/utils';
 import { 
   Upload, LogOut, Plus, Share2, FileText, FileCode, 
-  Trash2, X, Check, Film, Loader2 
+  Trash2, X, Check, Copy, Film, Loader2 
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [shareModalProject, setShareModalProject] = useState<Project | null>(null);
   const [reviewLink, setReviewLink] = useState<ReviewLink | null>(null);
+  const [copied, setCopied] = useState(false);
   
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadTitle, setUploadTitle] = useState('');
@@ -103,6 +104,7 @@ export default function Dashboard() {
   };
 
   const handleShare = async (project: Project) => {
+    setCopied(false);
     setShareModalProject(project);
     try {
       const link = await projectApi.createReviewLink(project.id, 72);
@@ -112,8 +114,10 @@ export default function Dashboard() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleExport = (url: string, _filename: string) => {
@@ -281,7 +285,14 @@ export default function Dashboard() {
         </div>
       </Modal>
 
-      <Modal isOpen={!!shareModalProject} onClose={() => setShareModalProject(null)} title="Share Review Link">
+      <Modal
+        isOpen={!!shareModalProject}
+        onClose={() => {
+          setShareModalProject(null);
+          setCopied(false);
+        }}
+        title="Share Review Link"
+      >
         {reviewLink && shareModalProject && (
           <div className="space-y-4">
             <p className="text-sm text-muted">
@@ -293,8 +304,15 @@ export default function Dashboard() {
                 value={`${window.location.origin}/review/${reviewLink.review_token}`} 
                 className="font-mono text-xs"
               />
-              <Button onClick={() => copyToClipboard(`${window.location.origin}/review/${reviewLink.review_token}`)}>
-                <Check className="h-4 w-4" strokeWidth={1.5} />
+              <Button
+                onClick={() => copyToClipboard(`${window.location.origin}/review/${reviewLink.review_token}`)}
+                title={copied ? 'Copied' : 'Copy link'}
+              >
+                {copied ? (
+                  <Check className="h-4 w-4" strokeWidth={1.5} />
+                ) : (
+                  <Copy className="h-4 w-4" strokeWidth={1.5} />
+                )}
               </Button>
             </div>
           </div>
