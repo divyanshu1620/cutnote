@@ -1,26 +1,22 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+﻿from pydantic import BaseModel, EmailStr, Field
 
 
-class UserRegisterRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_.-]+$")
+    password: str = Field(min_length=6, max_length=128)
+    full_name: str = Field(min_length=2, max_length=100)
+    recovery_email: EmailStr | None = None
 
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-    full_name: str = Field(min_length=2, max_length=120)
 
-
-class UserLoginRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    email: EmailStr
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=1, max_length=128)
 
 
 class UserResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: str
-    email: str
+    username: str
     full_name: str
-    plan_tier: str
-    usage_count: int
+    recovery_email: EmailStr | None = None
+
+    model_config = {"from_attributes": True}
