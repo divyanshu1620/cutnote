@@ -70,12 +70,12 @@ export async function api<T = any>(
 }
 
 export const authApi = {
-  register: (data: { email: string; password: string; full_name: string }) =>
+  register: (data: { username: string; password: string; full_name: string; recovery_email?: string }) =>
     api('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { username: string; password: string }) =>
     api('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => api('/auth/logout', { method: 'POST' }),
-  me: () => api<{ email: string; full_name: string }>('/auth/me'),
+  me: () => api<{ username: string; full_name: string; recovery_email?: string | null }>('/auth/me'),
 };
 
 export const projectApi = {

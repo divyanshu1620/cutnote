@@ -8,7 +8,8 @@ import { Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -21,15 +22,21 @@ export default function Auth() {
     setError('');
 
     const trimmedName = fullName.trim();
-    const trimmedEmail = email.trim();
+    const trimmedUsername = username.trim().toLowerCase();
+    const trimmedRecoveryEmail = recoveryEmail.trim();
 
     if (!isLogin && trimmedName.length < 2) {
       setError('Please enter your full name (at least 2 characters).');
       return;
     }
 
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setError('Please enter a valid email address.');
+    if (!trimmedUsername || trimmedUsername.length < 3) {
+      setError('Please enter a username with at least 3 characters.');
+      return;
+    }
+
+    if (trimmedRecoveryEmail && !trimmedRecoveryEmail.includes('@')) {
+      setError('Please enter a valid recovery email address or leave it blank.');
       return;
     }
 
@@ -42,12 +49,13 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        await authApi.login({ email: trimmedEmail, password });
+        await authApi.login({ username: trimmedUsername, password });
       } else {
         await authApi.register({
-          email: trimmedEmail,
+          username: trimmedUsername,
           password,
           full_name: trimmedName,
+          recovery_email: trimmedRecoveryEmail || undefined,
         });
       }
       navigate('/');
@@ -116,14 +124,26 @@ export default function Auth() {
               )}
 
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted">Email</label>
+                <label className="text-xs font-medium text-muted">Username</label>
                 <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter unique username"
                 />
               </div>
+
+              {!isLogin && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted">Recovery Email (Optional)</label>
+                  <Input
+                    type="email"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    placeholder="Optional recovery email"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted">Password</label>
