@@ -11,9 +11,23 @@ import {
   Trash2, X, Check, Copy, Film, Loader2, MessageSquare 
 } from 'lucide-react';
 
+const SEEN_STORAGE_KEY = 'cutnote_seen_comments';
+
+function loadSeenCounts(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(SEEN_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [user, setUser] = useState<{ full_name: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [seenCounts, setSeenCounts] = useState<Record<string, number>>(loadSeenCounts);
+
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [shareModalProject, setShareModalProject] = useState<Project | null>(null);
   const [reviewLink, setReviewLink] = useState<ReviewLink | null>(null);
@@ -40,8 +54,19 @@ export default function Dashboard() {
       ]);
       setUser(userData);
       setProjects(projectData);
+      setIsLoading(false);
     } catch (err) {
       navigate('/login');
+    }
+  };
+
+  const markProjectAsRead = (project: Project) => {
+    const updated = { ...seenCounts, [project.id]: project.total_comments };
+    setSeenCounts(updated);
+    try {
+      localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore storage quota errors
     }
   };
 
@@ -116,6 +141,7 @@ export default function Dashboard() {
   };
 
   const handleOpenReview = async (project: Project) => {
+    markProjectAsRead(project);
     setOpeningProjectId(project.id);
     try {
       const link = await projectApi.createReviewLink(project.id, 72);
@@ -136,6 +162,49 @@ export default function Dashboard() {
   const handleExport = (url: string, _filename: string) => {
     window.open(url, '_blank');
   };
+
+  const renderStatusBadge = (project: Project) => {
+    if (project.status === 'ready') {
+      const total = project.total_comments || 0;
+      const done = project.resolved_comments || 0;
+
+      if (total > 0 && done < total) {
+        return (
+          <span className="inline-flex items-center rounded-full border border-amber-800/60 bg-amber-900/20 px-2.5 py-1 text-xs font-medium text-amber-400">
+            {done}/{total} Done
+          </span>
+        );
+      }
+
+      return (
+        <span className="inline-flex items-center rounded-full border border-green-900/50 bg-green-900/20 px-2.5 py-1 text-xs font-medium text-green-400">
+          Ready
+        </span>
+      );
+    }
+
+    if (project.status === 'processing' || project.status === 'uploading') {
+      return (
+        <span className="inline-flex items-center rounded-full border border-yellow-900/50 bg-yellow-900/20 px-2.5 py-1 text-xs font-medium text-yellow-400">
+          {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center rounded-full border border-red-900/50 bg-red-900/20 px-2.5 py-1 text-xs font-medium text-red-400">
+        {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+      </span>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
+        <Loader2 className="h-6 w-6 animate-spin text-muted" strokeWidth={1.5} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
@@ -175,61 +244,66 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
-                {projects.map((project) => (
-                  <tr key={project.id} className="hover:bg-input/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-primary">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenReview(project)}
-                        className="text-left hover:underline focus:outline-none"
-                      >
-                        {project.title}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 font-mono tabular-nums text-muted">
-                      {formatTimecode(project.duration_seconds)}
-                    </td>
-                    <td className="px-6 py-4 font-mono tabular-nums text-muted">{project.fps}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                        project.status === 'ready' ? 'bg-green-900/20 text-green-400 border border-green-900/50' :
-                        project.status === 'processing' ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-900/50' :
-                        'bg-red-900/20 text-red-400 border border-red-900/50'
-                      }`}>
-                        {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                {projects.map((project) => {
+                  const seen = seenCounts[project.id] ?? 0;
+                  const unreadCount = Math.max(0, (project.total_comments || 0) - seen);
+
+                  return (
+                    <tr key={project.id} className="hover:bg-input/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-primary">
+                        <button
+                          type="button"
                           onClick={() => handleOpenReview(project)}
-                          disabled={openingProjectId === project.id}
-                          title="View Feedback"
+                          className="text-left hover:underline focus:outline-none"
                         >
-                          {openingProjectId === project.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                          ) : (
-                            <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
-                          )}
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleShare(project)} title="Share Link">
-                          <Share2 className="h-4 w-4" strokeWidth={1.5} />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleExport(projectApi.exportPremiereCsv(project.id), 'markers.csv')} title="Premiere CSV">
-                          <FileText className="h-4 w-4" strokeWidth={1.5} />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleExport(projectApi.exportResolveEdl(project.id), 'markers.edl')} title="Resolve EDL">
-                          <FileCode className="h-4 w-4" strokeWidth={1.5} />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(project.id)} className="text-red-400 hover:text-red-300" title="Delete">
-                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {project.title}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 font-mono tabular-nums text-muted">
+                        {formatTimecode(project.duration_seconds)}
+                      </td>
+                      <td className="px-6 py-4 font-mono tabular-nums text-muted">{project.fps}</td>
+                      <td className="px-6 py-4">
+                        {renderStatusBadge(project)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenReview(project)}
+                            disabled={openingProjectId === project.id}
+                            title={unreadCount > 0 ? `${unreadCount} new feedback` : 'View Feedback'}
+                            className="relative"
+                          >
+                            {openingProjectId === project.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                            ) : (
+                              <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
+                            )}
+                            {unreadCount > 0 && (
+                              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                              </span>
+                            )}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleShare(project)} title="Share Link">
+                            <Share2 className="h-4 w-4" strokeWidth={1.5} />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleExport(projectApi.exportPremiereCsv(project.id), 'markers.csv')} title="Premiere CSV">
+                            <FileText className="h-4 w-4" strokeWidth={1.5} />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleExport(projectApi.exportResolveEdl(project.id), 'markers.edl')} title="Resolve EDL">
+                            <FileCode className="h-4 w-4" strokeWidth={1.5} />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(project.id)} className="text-red-400 hover:text-red-300" title="Delete">
+                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {projects.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-muted">

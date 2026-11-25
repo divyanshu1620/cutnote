@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_owned_project
@@ -15,7 +15,7 @@ from app.core.security import (
     sign_review_token,
     sniff_media_magic_bytes,
 )
-from app.db.models import Project, ProjectStatus, ReviewLink, UploadSession, User
+from app.db.models import Comment, Project, ProjectStatus, ReviewLink, UploadSession, User
 from app.db.session import get_db
 from app.schemas.projects import (
     ProjectResponse,
@@ -207,13 +207,40 @@ async def complete_upload(
 async def list_projects(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[Project]:
+) -> list[ProjectResponse]:
     result = await db.execute(
         select(Project)
         .where(Project.owner_id == current_user.id)
         .order_by(Project.created_at.desc())
     )
-    return list(result.scalars().all())
+    projects = list(result.scalars().all())
+    if not projects:
+        return []
+
+    project_ids = [p.id for p in projects]
+    counts_result = await db.execute(
+        select(
+            Comment.project_id,
+            func.count(Comment.id).label("total"),
+            func.sum(case((Comment.is_resolved.is_(True), 1), else_=0)).label("resolved"),
+        )
+        .where(Comment.project_id.in_(project_ids))
+        .group_by(Comment.project_id)
+    )
+    counts_map = {
+        row.project_id: (int(row.total or 0), int(row.resolved or 0))
+        for row in counts_result.all()
+    }
+
+    response: list[ProjectResponse] = []
+    for p in projects:
+        total, resolved = counts_map.get(p.id, (0, 0))
+        item = ProjectResponse.model_validate(p)
+        item.total_comments = total
+        item.resolved_comments = resolved
+        response.append(item)
+
+    return response
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

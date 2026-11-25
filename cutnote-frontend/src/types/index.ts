@@ -6,8 +6,10 @@ export interface Project {
   file_size_bytes: number;
   duration_seconds: number;
   fps: number;
-  status: 'processing' | 'ready' | 'error';
+  status: 'uploading' | 'processing' | 'ready' | 'failed' | 'error';
   created_at: string;
+  total_comments: number;
+  resolved_comments: number;
 }
 
 export interface ReviewLink {

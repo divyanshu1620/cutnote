@@ -36,6 +36,8 @@ class ProjectResponse(BaseModel):
     fps: float
     status: str
     created_at: datetime
+    total_comments: int = 0
+    resolved_comments: int = 0
 
 
 class ReviewLinkCreateRequest(BaseModel):
