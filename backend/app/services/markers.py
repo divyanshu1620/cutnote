@@ -32,6 +32,8 @@ def _comment_label(comment: Comment) -> str:
         return comment.ai_checklist_item
     if comment.body_text:
         return comment.body_text
+    if comment.voice_transcript:
+        return comment.voice_transcript
     return "Client feedback"
 
 
