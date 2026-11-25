@@ -1,0 +1,17 @@
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+backend/*.db
+backend/storage/
+backend/uploads/
+cutnote-frontend/node_modules/
+cutnote-frontend/dist/
+cutnote-frontend/.env
+.DS_Store
+*.log
+
+.venv/
+
+.env
+**/.env
