@@ -74,6 +74,13 @@ export const authApi = {
     api('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login: (data: { username: string; password: string }) =>
     api('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  forgotPassword: (data: { identifier: string }) =>
+    api<{ message: string; delivery_mode: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  resetPassword: (data: { token_or_otp: string; new_password: string }) =>
+    api('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => api('/auth/logout', { method: 'POST' }),
   me: () => api<{ username: string; full_name: string; recovery_email?: string | null }>('/auth/me'),
 };
