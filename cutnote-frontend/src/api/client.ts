@@ -1,4 +1,4 @@
-import type { Project, ReviewLink, ReviewData } from '../types';
+import type { Project, ReviewLink, ReviewData, Comment } from '../types';
 const BASE_URL = '/api/v1';
 
 export async function api<T = any>(
@@ -90,6 +90,11 @@ export const reviewApi = {
     api(`/review/${token}/voice-comments`, {
       method: 'POST',
       body: formData,
+    }),
+  translateComment: (token: string, commentId: string, action: 'english' | 'original') =>
+    api<Comment>(`/review/${token}/comments/${commentId}/translate`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
     }),
   toggleResolveComment: (token: string, commentId: string) =>
     api(`/review/${token}/comments/${commentId}/resolve`, {

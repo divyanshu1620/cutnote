@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +19,7 @@ from app.db.models import Comment, Project, ReviewLink
 from app.db.session import get_db
 from app.schemas.review import CommentCreateRequest, CommentResponse, ReviewProjectResponse
 from app.services.storage import StorageBackend, get_storage
-from app.services.transcription import transcribe_voice_note
+from app.services.transcription import transcribe_voice_note, translate_to_english
 
 router = APIRouter(prefix="/review", tags=["review"])
 settings = get_settings()
@@ -29,6 +31,12 @@ AUDIO_EXT_MAP = {
     "audio/mpeg": ".mp3",
     "audio/mp4": ".m4a",
 }
+
+
+class TranslateActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["english", "original"] = "english"
 
 
 async def _verify_review_link(review_token: str, db: AsyncSession) -> tuple[ReviewLink, Project]:
@@ -110,13 +118,15 @@ async def create_text_comment(
     db: AsyncSession = Depends(get_db),
 ) -> Comment:
     link, project = await _verify_review_link(review_token, db)
+    clean_body = sanitize_text(payload.body_text, max_length=2000)
 
     comment = Comment(
         project_id=project.id,
         review_link_id=link.id,
         author_name=sanitize_text(payload.author_name, max_length=80) or "Client",
         timestamp_seconds=round(payload.timestamp_seconds, 3),
-        body_text=sanitize_text(payload.body_text, max_length=2000),
+        body_text=clean_body,
+        ai_checklist_item=clean_body,
     )
     db.add(comment)
     await db.commit()
@@ -131,7 +141,6 @@ async def create_voice_comment(
     review_token: str,
     author_name: str = Form(..., min_length=1, max_length=80),
     timestamp_seconds: float = Form(..., ge=0.0),
-    transcript_mode: str = Form("hinglish"),
     audio: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     storage: StorageBackend = Depends(get_storage),
@@ -159,11 +168,7 @@ async def create_voice_comment(
     storage.write_bytes(voice_key, data)
     voice_path = storage.get_local_path(voice_key)
 
-    transcript, checklist_item = transcribe_voice_note(
-        voice_path,
-        timestamp_seconds,
-        mode=transcript_mode,
-    )
+    roman_transcript, original_roman = transcribe_voice_note(voice_path, timestamp_seconds)
 
     comment = Comment(
         project_id=project.id,
@@ -171,13 +176,55 @@ async def create_voice_comment(
         author_name=sanitize_text(author_name, max_length=80) or "Client",
         timestamp_seconds=round(timestamp_seconds, 3),
         voice_storage_key=voice_key,
-        voice_transcript=transcript,
-        ai_checklist_item=checklist_item,
+        voice_transcript=roman_transcript,
+        ai_checklist_item=original_roman,
     )
     db.add(comment)
     await db.commit()
     await db.refresh(comment)
     return comment
+
+
+@router.post("/{review_token}/comments/{comment_id}/translate", response_model=CommentResponse)
+@limiter.limit("30/minute")
+async def translate_comment_text(
+    request: Request,
+    review_token: str,
+    comment_id: str,
+    payload: TranslateActionRequest,
+    db: AsyncSession = Depends(get_db),
+) -> CommentResponse:
+    _, project = await _verify_review_link(review_token, db)
+    res = await db.execute(
+        select(Comment).where(Comment.id == comment_id, Comment.project_id == project.id)
+    )
+    comment = res.scalar_one_or_none()
+    if not comment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found.")
+
+    if payload.action == "original":
+        original_text = (comment.ai_checklist_item or comment.voice_transcript or comment.body_text or "").strip()
+        if not original_text:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No original text available.")
+        if comment.voice_storage_key:
+            comment.voice_transcript = original_text
+        else:
+            comment.body_text = original_text
+    else:
+        source_text = (comment.ai_checklist_item or comment.voice_transcript or comment.body_text or "").strip()
+        if not source_text:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No text available to translate.")
+        if not comment.ai_checklist_item:
+            comment.ai_checklist_item = source_text
+        english_text = translate_to_english(source_text)
+        if comment.voice_storage_key:
+            comment.voice_transcript = english_text
+        else:
+            comment.body_text = english_text
+
+    await db.commit()
+    await db.refresh(comment)
+    return CommentResponse.model_validate(comment)
 
 
 @router.get("/{review_token}/comments/{comment_id}/audio")

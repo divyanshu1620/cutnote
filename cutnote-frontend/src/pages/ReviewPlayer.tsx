@@ -28,8 +28,11 @@ export default function ReviewPlayer() {
 
   const [authorName, setAuthorName] = useState(() => sessionStorage.getItem('cutnote_author') || '');
   const [commentText, setCommentText] = useState('');
-  const [transcriptMode, setTranscriptMode] = useState<'hinglish' | 'english' | 'hindi'>('hinglish');
   const [isSending, setIsSending] = useState(false);
+
+  const [openTranslateMenuId, setOpenTranslateMenuId] = useState<string | null>(null);
+  const [translatedIds, setTranslatedIds] = useState<Record<string, boolean>>({});
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -138,6 +141,31 @@ export default function ReviewPlayer() {
     }
   };
 
+  const handleTranslateAction = async (
+    e: React.MouseEvent,
+    commentId: string,
+    action: 'english' | 'original'
+  ) => {
+    e.stopPropagation();
+    if (!token || translatingId) return;
+    setActionError('');
+    setTranslatingId(commentId);
+    try {
+      await reviewApi.translateComment(token, commentId, action);
+      setTranslatedIds((prev) => ({
+        ...prev,
+        [commentId]: action === 'english',
+      }));
+      setOpenTranslateMenuId(null);
+      await loadReviewData();
+    } catch (err: any) {
+      console.error('Failed to translate:', err);
+      setActionError(err.message || 'Failed to translate');
+    } finally {
+      setTranslatingId(null);
+    }
+  };
+
   const startRecording = async () => {
     setActionError('');
     const finalAuthor = authorName.trim() || 'Client';
@@ -151,7 +179,6 @@ export default function ReviewPlayer() {
       audioChunksRef.current = [];
 
       const recordedAt = currentTime;
-      const selectedMode = transcriptMode;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -167,7 +194,6 @@ export default function ReviewPlayer() {
         const formData = new FormData();
         formData.append('author_name', finalAuthor);
         formData.append('timestamp_seconds', recordedAt.toString());
-        formData.append('transcript_mode', selectedMode);
         formData.append('audio', audioBlob, 'voice-note.webm');
 
         setIsSending(true);
@@ -350,25 +376,12 @@ export default function ReviewPlayer() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Your name (optional)"
-                  value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
-                  className="h-8 text-xs flex-1"
-                />
-                <select
-                  value={transcriptMode}
-                  onChange={(e) => setTranscriptMode(e.target.value as 'hinglish' | 'english' | 'hindi')}
-                  aria-label="Voice transcript language"
-                  disabled={isRecording || isSending}
-                  className="h-8 rounded-md border border-hairline bg-input px-2.5 text-xs text-primary focus:outline-none focus:border-cobalt"
-                >
-                  <option value="hinglish">Hinglish</option>
-                  <option value="english">English</option>
-                  <option value="hindi">Hindi</option>
-                </select>
-              </div>
+              <Input
+                placeholder="Your name (optional)"
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                className="h-8 text-xs"
+              />
 
               <div className="flex gap-2">
                 <Input
@@ -437,7 +450,7 @@ export default function ReviewPlayer() {
               {isRecording && (
                 <div className="flex items-center gap-2 text-xs text-red-400">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-                  Recording voice note ({transcriptMode}) at {formatTimecode(currentTime)} — {formatTimecode(recordingTime)}
+                  Recording voice note at {formatTimecode(currentTime)} — {formatTimecode(recordingTime)}
                 </div>
               )}
 
@@ -469,6 +482,10 @@ export default function ReviewPlayer() {
                   !comment.voice_transcript.includes('GROQ_API_KEY')
                     ? comment.voice_transcript
                     : '';
+
+                const isTranslated = Boolean(translatedIds[comment.id]);
+                const isMenuOpen = openTranslateMenuId === comment.id;
+                const isBusy = translatingId === comment.id;
 
                 return (
                   <div
@@ -536,10 +553,49 @@ export default function ReviewPlayer() {
                           src={`/api/v1/review/${token}/comments/${comment.id}/audio`}
                           className="h-8 w-full"
                         />
-                        {cleanTranscript && (
+                        {cleanTranscript ? (
                           <p className="text-xs text-primary/90 leading-relaxed">
                             {cleanTranscript}
                           </p>
+                        ) : (
+                          <p className="text-xs text-muted">
+                            Transcript unavailable
+                          </p>
+                        )}
+
+                        {cleanTranscript && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-hairline/70">
+                            {isBusy ? (
+                              <span className="text-[11px] text-muted">Converting...</span>
+                            ) : isTranslated ? (
+                              <button
+                                type="button"
+                                onClick={(e) => handleTranslateAction(e, comment.id, 'original')}
+                                className="rounded border border-hairline bg-input px-2 py-0.5 text-[11px] text-primary hover:border-cobalt"
+                              >
+                                Original
+                              </button>
+                            ) : !isMenuOpen ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenTranslateMenuId(comment.id);
+                                }}
+                                className="rounded border border-hairline bg-input px-2 py-0.5 text-[11px] text-primary hover:border-cobalt"
+                              >
+                                Translate
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => handleTranslateAction(e, comment.id, 'english')}
+                                className="rounded border border-cobalt bg-input px-2 py-0.5 text-[11px] text-primary hover:bg-panel"
+                              >
+                                English
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
