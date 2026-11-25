@@ -41,7 +41,7 @@ async def register(
     await db.commit()
     await db.refresh(user)
 
-    token = create_access_token(subject=str(user.id))
+    token = create_access_token(str(user.id))
     response.set_cookie(
         key=settings.COOKIE_NAME,
         value=token,
@@ -70,7 +70,7 @@ async def login(
             detail="Invalid username or password.",
         )
 
-    token = create_access_token(subject=str(user.id))
+    token = create_access_token(str(user.id))
     response.set_cookie(
         key=settings.COOKIE_NAME,
         value=token,
@@ -91,3 +91,4 @@ async def logout(response: Response) -> None:
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
