@@ -1,5 +1,4 @@
 import os
-import re
 from pathlib import Path
 
 import httpx
@@ -8,95 +7,7 @@ from app.core.security import sanitize_text
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
-
-_DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
-
-_DEVANAGARI_MAP: dict[str, str] = {
-    "अ": "a",
-    "आ": "aa",
-    "इ": "i",
-    "ई": "ee",
-    "उ": "u",
-    "ऊ": "oo",
-    "ऋ": "ri",
-    "ए": "e",
-    "ऐ": "ai",
-    "ओ": "o",
-    "औ": "au",
-    "क": "ka",
-    "ख": "kha",
-    "ग": "ga",
-    "घ": "gha",
-    "ङ": "nga",
-    "च": "cha",
-    "छ": "chha",
-    "ज": "ja",
-    "झ": "jha",
-    "ञ": "nya",
-    "ट": "ta",
-    "ठ": "tha",
-    "ड": "da",
-    "ढ": "dha",
-    "ण": "na",
-    "त": "ta",
-    "थ": "tha",
-    "द": "da",
-    "ध": "dha",
-    "न": "na",
-    "प": "pa",
-    "फ": "pha",
-    "ब": "ba",
-    "भ": "bha",
-    "म": "ma",
-    "य": "ya",
-    "र": "ra",
-    "ल": "la",
-    "व": "va",
-    "श": "sha",
-    "ष": "shha",
-    "स": "sa",
-    "ह": "ha",
-    "ा": "aa",
-    "ि": "i",
-    "ी": "ee",
-    "ु": "u",
-    "ू": "oo",
-    "ृ": "ri",
-    "े": "e",
-    "ै": "ai",
-    "ो": "o",
-    "ौ": "au",
-    "ं": "n",
-    "ः": "h",
-    "ँ": "n",
-    "्": "",
-    "।": ".",
-    "॥": ".",
-    "०": "0",
-    "१": "1",
-    "२": "2",
-    "३": "3",
-    "४": "4",
-    "५": "5",
-    "६": "6",
-    "७": "7",
-    "८": "8",
-    "९": "9",
-}
-
-
-def _transliterate_devanagari_fallback(text: str) -> str:
-    if not _DEVANAGARI_RE.search(text):
-        return text
-    out: list[str] = []
-    for ch in text:
-        if ch in _DEVANAGARI_MAP:
-            out.append(_DEVANAGARI_MAP[ch])
-        else:
-            out.append(ch)
-    cleaned = re.sub(r"\s+", " ", "".join(out)).strip()
-    return cleaned
+GROQ_CHAT_MODEL = "openai/gpt-oss-120b"
 
 
 def _get_groq_api_key() -> str:
@@ -125,8 +36,8 @@ def _to_roman_script(text: str) -> str:
 
     api_key = _get_groq_api_key()
     if not api_key:
-        print("[Roman Script Error]: GROQ_API_KEY missing, using fallback", flush=True)
-        return _transliterate_devanagari_fallback(cleaned)
+        print("[Roman Script Error]: GROQ_API_KEY is missing", flush=True)
+        return cleaned
 
     try:
         response = httpx.post(
@@ -162,7 +73,7 @@ def _to_roman_script(text: str) -> str:
                 f"[Roman Script Error]: Groq HTTP {response.status_code} -> {response.text}",
                 flush=True,
             )
-            return _transliterate_devanagari_fallback(cleaned)
+            return cleaned
 
         data = response.json()
         choices = data.get("choices") or []
@@ -170,12 +81,10 @@ def _to_roman_script(text: str) -> str:
         if choices:
             content = str((choices[0].get("message") or {}).get("content", ""))
         converted = sanitize_text(content.strip().strip('"'), max_length=1000)
-        if _DEVANAGARI_RE.search(converted):
-            converted = _transliterate_devanagari_fallback(converted)
-        return converted or _transliterate_devanagari_fallback(cleaned)
+        return converted or cleaned
     except Exception as exc:
         print(f"[Roman Script Error]: {type(exc).__name__}: {exc}", flush=True)
-        return _transliterate_devanagari_fallback(cleaned)
+        return cleaned
 
 
 def transcribe_voice_note(file_path: Path, timestamp_seconds: float) -> tuple[str, str]:
@@ -230,7 +139,7 @@ def translate_to_english(source_text: str) -> str:
     api_key = _get_groq_api_key()
     if not api_key:
         print("[Translate Error]: GROQ_API_KEY is missing", flush=True)
-        return _transliterate_devanagari_fallback(cleaned)
+        return cleaned
 
     try:
         response = httpx.post(
@@ -264,7 +173,7 @@ def translate_to_english(source_text: str) -> str:
                 f"[Translate Error]: Groq HTTP {response.status_code} -> {response.text}",
                 flush=True,
             )
-            return _transliterate_devanagari_fallback(cleaned)
+            return cleaned
 
         data = response.json()
         choices = data.get("choices") or []
@@ -272,7 +181,7 @@ def translate_to_english(source_text: str) -> str:
         if choices:
             content = str((choices[0].get("message") or {}).get("content", ""))
         translated = sanitize_text(content.strip().strip('"'), max_length=1000)
-        return translated or _transliterate_devanagari_fallback(cleaned)
+        return translated or cleaned
     except Exception as exc:
         print(f"[Translate Error]: {type(exc).__name__}: {exc}", flush=True)
-        return _transliterate_devanagari_fallback(cleaned)
+        return cleaned
