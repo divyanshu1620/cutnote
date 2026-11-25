@@ -1,4 +1,4 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -29,11 +29,11 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "https://cutnote-three.vercel.app"]
 
     STORAGE_LOCAL_ROOT: str = "./storage_data"
-    MAX_VIDEO_SIZE_BYTES: int = 500 * 1024 * 1024
+    MAX_VIDEO_SIZE_BYTES: int = 10 * 1024 * 1024 * 1024
     MAX_CHUNK_SIZE_BYTES: int = 10 * 1024 * 1024
-    MAX_VOICE_SIZE_BYTES: int = 10 * 1024 * 1024
-    MAX_VIDEO_DURATION_SECONDS: int = 1800
-    MAX_VOICE_DURATION_SECONDS: int = 120
+    MAX_VOICE_SIZE_BYTES: int = 15 * 1024 * 1024
+    MAX_VIDEO_DURATION_SECONDS: int = 7200
+    MAX_VOICE_DURATION_SECONDS: int = 180
     MAX_JSON_BODY_BYTES: int = 1 * 1024 * 1024
 
     @property

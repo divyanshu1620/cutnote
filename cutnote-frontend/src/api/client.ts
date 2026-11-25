@@ -1,5 +1,33 @@
-import type { Project, ReviewLink, ReviewData, Comment } from '../types';
+﻿import type { Project, ReviewLink, ReviewData, Comment } from '../types';
 const BASE_URL = '/api/v1';
+
+function humanizeValidationMessage(rawMessage: string): string {
+  const trimmed = rawMessage.trim();
+  if (!trimmed) return 'Something went wrong. Please try again.';
+
+  const minMatch = trimmed.match(/String should have at least (\d+) characters?/i);
+  if (minMatch) {
+    const count = Number(minMatch[1]);
+    return count <= 2
+      ? `Please enter a valid name (at least ${count} characters).`
+      : `Please enter at least ${count} characters.`;
+  }
+
+  const maxMatch = trimmed.match(/String should have at most (\d+) characters?/i);
+  if (maxMatch) {
+    return `Please keep this under ${maxMatch[1]} characters.`;
+  }
+
+  if (/value is not a valid email address/i.test(trimmed)) {
+    return 'Please enter a valid email address.';
+  }
+
+  if (/field required/i.test(trimmed)) {
+    return 'Please fill in all required fields.';
+  }
+
+  return trimmed;
+}
 
 export async function api<T = any>(
   endpoint: string,
@@ -19,17 +47,17 @@ export async function api<T = any>(
   });
 
   if (!response.ok) {
-    let message = `Request failed (${response.status})`;
+    let message = `Request failed (${response.status}). Please try again.`;
     try {
       const errorData = await response.json();
       if (typeof errorData.detail === 'string') {
-        message = errorData.detail;
+        message = humanizeValidationMessage(errorData.detail);
       } else if (Array.isArray(errorData.detail) && errorData.detail[0]?.msg) {
-        message = errorData.detail[0].msg;
+        message = humanizeValidationMessage(String(errorData.detail[0].msg));
       }
     } catch {
       const errorText = await response.text().catch(() => '');
-      if (errorText) message = errorText;
+      if (errorText) message = humanizeValidationMessage(errorText);
     }
     throw new Error(message);
   }
