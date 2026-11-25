@@ -25,10 +25,10 @@ def _get_groq_api_key() -> str:
     return ""
 
 
-def _to_roman_hinglish(text: str) -> str:
+def _to_hinglish_latin(text: str) -> str:
     """
-    Converts spoken Hindi/Hinglish text into natural Hinglish written strictly
-    using English (Latin) letters (e.g. 'bhai yahan cut lagao, audio kam karo').
+    Converts spoken Hindi/Hinglish text into clean Romanized Hinglish
+    written strictly in English (Latin) letters (e.g. 'bhai yahan cut lagao').
     """
     cleaned = sanitize_text(text, max_length=1000).strip()
     if not cleaned:
@@ -36,7 +36,7 @@ def _to_roman_hinglish(text: str) -> str:
 
     api_key = _get_groq_api_key()
     if not api_key:
-        print("[Hinglish Transliteration Error]: GROQ_API_KEY is missing", flush=True)
+        print("[Hinglish Error]: GROQ_API_KEY is missing", flush=True)
         return cleaned
 
     try:
@@ -48,20 +48,17 @@ def _to_roman_hinglish(text: str) -> str:
             },
             json={
                 "model": GROQ_CHAT_MODEL,
-                "temperature": 0.1,
+                "temperature": 0.0,
                 "messages": [
                     {
                         "role": "system",
                         "content": (
-                            "You are a Hinglish transliterator for a video review tool. "
-                            "Take the input speech transcript and output ONLY Hinglish (Hindi/Hinglish words "
-                            "written using English/Latin alphabet letters A-Z and a-z). "
-                            "NEVER use Devanagari, Arabic, Urdu, or any non-Latin script. "
-                            "Do NOT translate Hindi words into English sentences; keep Hindi words as Hindi "
-                            "spelled in English letters (for example: 'yahan cut lagao', 'background music kam karo', "
-                            "'ye wala part hata do', 'transition smooth rakhna'). "
-                            "Keep English technical/editing terms like cut, trim, audio, music, zoom, transition, "
-                            "clip, frame as-is. Return ONLY the final Hinglish text with no quotes or notes."
+                            "Convert the input text into natural Hinglish written ONLY in English (Latin) letters. "
+                            "Keep Hindi words as Hindi spelled in English letters (for example: 'yahan cut lagao', "
+                            "'audio thoda kam karo', 'ye part trim kar do'). "
+                            "Do NOT output Devanagari, Arabic, Urdu, or any non-Latin script. "
+                            "Do NOT translate into a full English sentence; preserve the spoken Hindi/Hinglish phrasing. "
+                            "Return ONLY the final Hinglish string."
                         ),
                     },
                     {
@@ -74,7 +71,7 @@ def _to_roman_hinglish(text: str) -> str:
         )
         if response.status_code >= 400:
             print(
-                f"[Hinglish Transliteration Error]: Groq HTTP {response.status_code} -> {response.text}",
+                f"[Hinglish Error]: Groq HTTP {response.status_code} -> {response.text}",
                 flush=True,
             )
             return cleaned
@@ -84,22 +81,21 @@ def _to_roman_hinglish(text: str) -> str:
         content = ""
         if choices:
             content = str((choices[0].get("message") or {}).get("content", ""))
-        converted = sanitize_text(content.strip().strip('"'), max_length=1000)
-        return converted or cleaned
+        result = sanitize_text(content.strip().strip('"'), max_length=1000)
+        return result or cleaned
     except Exception as exc:
-        print(f"[Hinglish Transliteration Error]: {type(exc).__name__}: {exc}", flush=True)
+        print(f"[Hinglish Error]: {type(exc).__name__}: {exc}", flush=True)
         return cleaned
 
 
 def transcribe_voice_note(file_path: Path, timestamp_seconds: float) -> tuple[str, str]:
     """
-    Transcribes a Hindi/Hinglish voice note using Groq Whisper with language='hi'
-    and converts it into Romanized Hinglish (English letters).
-    Returns (hinglish_transcript, original_hinglish_backup).
+    Transcribes voice note via Groq Whisper (language='hi') and returns
+    clean Romanized Hinglish (English letters) as (transcript, original_backup).
     """
     api_key = _get_groq_api_key()
     if not api_key:
-        print("[Transcription Error]: GROQ_API_KEY is missing in environment and .env", flush=True)
+        print("[Transcription Error]: GROQ_API_KEY is missing", flush=True)
         return "", ""
 
     try:
@@ -111,11 +107,7 @@ def transcribe_voice_note(file_path: Path, timestamp_seconds: float) -> tuple[st
                     "model": "whisper-large-v3-turbo",
                     "language": "hi",
                     "response_format": "json",
-                    "prompt": (
-                        "Hindi aur Hinglish video editing feedback. "
-                        "Examples: bhai yahan cut lagao, audio kam karo, music thoda slow rakho, "
-                        "ye clip trim kar do, zoom thoda bada karo."
-                    ),
+                    "prompt": "Hinglish video editing feedback: haan bhai yahan cut lagao, audio kam karo, clip trim karo.",
                 },
                 files={"file": (file_path.name, audio_file, "audio/webm")},
                 timeout=30.0,
@@ -129,7 +121,7 @@ def transcribe_voice_note(file_path: Path, timestamp_seconds: float) -> tuple[st
 
             data = response.json()
             raw_text = sanitize_text(str(data.get("text", "")), max_length=1000)
-            hinglish_text = _to_roman_hinglish(raw_text)
+            hinglish_text = _to_hinglish_latin(raw_text)
             return hinglish_text, hinglish_text
     except Exception as exc:
         print(f"[Transcription Error]: {type(exc).__name__}: {exc}", flush=True)
