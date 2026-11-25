@@ -1,4 +1,4 @@
-import enum
+﻿import enum
 import uuid
 from datetime import datetime, timezone
 
@@ -36,9 +36,10 @@ class User(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    recovery_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     plan_tier: Mapped[str] = mapped_column(String(32), default="free", nullable=False)
     usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
