@@ -8,7 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { formatTimecode, formatBytes } from '../lib/utils';
 import { 
   Upload, LogOut, Plus, Share2, FileText, FileCode, 
-  Trash2, X, Check, Copy, Film, Loader2 
+  Trash2, X, Check, Copy, Film, Loader2, MessageSquare 
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [shareModalProject, setShareModalProject] = useState<Project | null>(null);
   const [reviewLink, setReviewLink] = useState<ReviewLink | null>(null);
   const [copied, setCopied] = useState(false);
+  const [openingProjectId, setOpeningProjectId] = useState<string | null>(null);
   
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadTitle, setUploadTitle] = useState('');
@@ -114,6 +115,18 @@ export default function Dashboard() {
     }
   };
 
+  const handleOpenReview = async (project: Project) => {
+    setOpeningProjectId(project.id);
+    try {
+      const link = await projectApi.createReviewLink(project.id, 72);
+      navigate(`/review/${link.review_token}`);
+    } catch (err) {
+      console.error('Failed to open review:', err);
+    } finally {
+      setOpeningProjectId(null);
+    }
+  };
+
   const copyToClipboard = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
@@ -164,7 +177,15 @@ export default function Dashboard() {
               <tbody className="divide-y divide-hairline">
                 {projects.map((project) => (
                   <tr key={project.id} className="hover:bg-input/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-primary">{project.title}</td>
+                    <td className="px-6 py-4 font-medium text-primary">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReview(project)}
+                        className="text-left hover:underline focus:outline-none"
+                      >
+                        {project.title}
+                      </button>
+                    </td>
                     <td className="px-6 py-4 font-mono tabular-nums text-muted">
                       {formatTimecode(project.duration_seconds)}
                     </td>
@@ -180,6 +201,19 @@ export default function Dashboard() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenReview(project)}
+                          disabled={openingProjectId === project.id}
+                          title="View Feedback"
+                        >
+                          {openingProjectId === project.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                          ) : (
+                            <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
+                          )}
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleShare(project)} title="Share Link">
                           <Share2 className="h-4 w-4" strokeWidth={1.5} />
                         </Button>
