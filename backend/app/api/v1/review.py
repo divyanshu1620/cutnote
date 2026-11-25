@@ -131,6 +131,7 @@ async def create_voice_comment(
     review_token: str,
     author_name: str = Form(..., min_length=1, max_length=80),
     timestamp_seconds: float = Form(..., ge=0.0),
+    transcript_mode: str = Form("hinglish"),
     audio: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     storage: StorageBackend = Depends(get_storage),
@@ -158,7 +159,11 @@ async def create_voice_comment(
     storage.write_bytes(voice_key, data)
     voice_path = storage.get_local_path(voice_key)
 
-    transcript, checklist_item = transcribe_voice_note(voice_path, timestamp_seconds)
+    transcript, checklist_item = transcribe_voice_note(
+        voice_path,
+        timestamp_seconds,
+        mode=transcript_mode,
+    )
 
     comment = Comment(
         project_id=project.id,

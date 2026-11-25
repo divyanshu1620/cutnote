@@ -28,6 +28,7 @@ export default function ReviewPlayer() {
 
   const [authorName, setAuthorName] = useState(() => sessionStorage.getItem('cutnote_author') || '');
   const [commentText, setCommentText] = useState('');
+  const [transcriptMode, setTranscriptMode] = useState<'hinglish' | 'english' | 'hindi'>('hinglish');
   const [isSending, setIsSending] = useState(false);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -150,6 +151,7 @@ export default function ReviewPlayer() {
       audioChunksRef.current = [];
 
       const recordedAt = currentTime;
+      const selectedMode = transcriptMode;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -165,6 +167,7 @@ export default function ReviewPlayer() {
         const formData = new FormData();
         formData.append('author_name', finalAuthor);
         formData.append('timestamp_seconds', recordedAt.toString());
+        formData.append('transcript_mode', selectedMode);
         formData.append('audio', audioBlob, 'voice-note.webm');
 
         setIsSending(true);
@@ -347,12 +350,25 @@ export default function ReviewPlayer() {
             </div>
 
             <div className="space-y-2">
-              <Input
-                placeholder="Your name (optional)"
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                className="h-8 text-xs"
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Your name (optional)"
+                  value={authorName}
+                  onChange={(e) => setAuthorName(e.target.value)}
+                  className="h-8 text-xs flex-1"
+                />
+                <select
+                  value={transcriptMode}
+                  onChange={(e) => setTranscriptMode(e.target.value as 'hinglish' | 'english' | 'hindi')}
+                  aria-label="Voice transcript language"
+                  disabled={isRecording || isSending}
+                  className="h-8 rounded-md border border-hairline bg-input px-2.5 text-xs text-primary focus:outline-none focus:border-cobalt"
+                >
+                  <option value="hinglish">Hinglish</option>
+                  <option value="english">English</option>
+                  <option value="hindi">Hindi</option>
+                </select>
+              </div>
 
               <div className="flex gap-2">
                 <Input
@@ -421,7 +437,7 @@ export default function ReviewPlayer() {
               {isRecording && (
                 <div className="flex items-center gap-2 text-xs text-red-400">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-                  Recording voice note at {formatTimecode(currentTime)} — {formatTimecode(recordingTime)}
+                  Recording voice note ({transcriptMode}) at {formatTimecode(currentTime)} — {formatTimecode(recordingTime)}
                 </div>
               )}
 

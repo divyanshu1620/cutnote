@@ -23,15 +23,37 @@ def _get_groq_api_key() -> str:
     return ""
 
 
-def transcribe_voice_note(file_path: Path, timestamp_seconds: float) -> tuple[str, str]:
+def transcribe_voice_note(
+    file_path: Path,
+    timestamp_seconds: float,
+    mode: str = "hinglish",
+) -> tuple[str, str]:
     """
-    Transcribes a voice note using Groq Whisper (Hindi/English).
-    Returns empty strings if API key is missing or transcription fails.
+    Transcribes a voice note using Groq Whisper.
+    mode: 'hinglish' | 'english' | 'hindi'
     """
     api_key = _get_groq_api_key()
     if not api_key:
         print("[Transcription Error]: GROQ_API_KEY is missing in environment and .env", flush=True)
         return "", ""
+
+    normalized_mode = (mode or "hinglish").strip().lower()
+    form_data: dict[str, str] = {
+        "model": "whisper-large-v3-turbo",
+        "response_format": "json",
+    }
+
+    if normalized_mode == "english":
+        form_data["language"] = "en"
+    elif normalized_mode == "hindi":
+        form_data["language"] = "hi"
+        form_data["prompt"] = "यह वीडियो एडिटिंग फीडबैक है।"
+    else:
+        # Hinglish: Roman script bias with mixed Hindi-English video edit words
+        form_data["prompt"] = (
+            "Editor note in Hinglish: bhai is cut ko trim karo, background music kam karo, "
+            "transition smooth rakho, pata nahi kya ho raha hai yahan."
+        )
 
     transcript = ""
     try:
@@ -39,10 +61,7 @@ def transcribe_voice_note(file_path: Path, timestamp_seconds: float) -> tuple[st
             response = httpx.post(
                 GROQ_TRANSCRIBE_URL,
                 headers={"Authorization": f"Bearer {api_key}"},
-                data={
-                    "model": "whisper-large-v3-turbo",
-                    "response_format": "json",
-                },
+                data=form_data,
                 files={"file": (file_path.name, audio_file, "audio/webm")},
                 timeout=30.0,
             )
