@@ -116,7 +116,7 @@ export default function Dashboard() {
     navigator.clipboard.writeText(text);
   };
 
-  const handleExport = (url: string, filename: string) => {
+  const handleExport = (url: string, _filename: string) => {
     window.open(url, '_blank');
   };
 
